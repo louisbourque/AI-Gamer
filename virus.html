@@ -11,6 +11,14 @@
 <br>
 <canvas id="canvas" width="210" height="210"></canvas>
 
+<h2>Purpose</h2>
+<p>The goal of this assignment was to create a AI player (green) of the game Virus and have it play against a player who moves randomly (red). For the AI player, we are using a minimax search to determine the best move by finding the move that will maximize the probability of a win, and minimize the probability of a loss.</p>
+
+<h2>How it works</h2>
+<p>The application uses two web workers to offload the processing of finding the next move away from the UI thread. This allows the browser to remain responsive, even though intense computations may be taking place. The status of the game is drawn on the screen using a canvas element. </p>
+
+<h2>Virus Game</h2>
+<p>The premise of the virus game is each player starts with two pieces on the board. A player can either move to an adjacent square, and the original piece remains, or move two squares away, but the piece is removed. When a piece is placed down, the opponent's adjacent pieces are stolen. A piece dies after 5 moves if the piece has not moved. The player with more than 50% of the pieces wins when no more moves are possible.</p>
 
 <script type="text/javascript">
 //Virus class, used to track which player has control of a square, and how much life is left.
