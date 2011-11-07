@@ -1,6 +1,6 @@
 This project was an assignment for a university course in Artificial Intelligence.
 
-==Demo
+##Demo
 
 Connect 4:
 http://louisbourque.github.com/COMP4106-Assignment2/connect4.html
