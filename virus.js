@@ -196,6 +196,11 @@ function generate_children(node){
 		}
 	}
 	
+	var message = new Object();
+	message.type = 'debug';
+	message.children = children.length;
+	postMessage(message);
+	
 	return children;
 }
 
@@ -297,6 +302,7 @@ function max_value(node, depth, alpha, beta){
 			return alpha;
 		}
 	}
+	delete node.children;
 	return alpha;
 }
 
@@ -310,6 +316,7 @@ function min_value(node, depth, alpha, beta){
 			return beta;
 		}
 	}
+	delete node.children;
 	return beta;
 }
 
@@ -325,19 +332,7 @@ function heuristic_estimate(node){
 
 //Heuristic 1 - count the number of squares owned, minus number of squares owned by opponent.
 function heuristic_estimate_h1(node){
-	var me = 0;
-	var opp = 0
-	for(var i=0;i<config.grid_size;i++){
-		for(var j=0;j<config.grid_size;j++){
-			if(node.grid[i][j] != undefined){
-				if(node.grid[i][j].player == config.player)
-					me++;
-				else
-					opp++;
-			}
-		}
-	}
-	return me - opp; 
+	return Math.random();
 }
 
 //Heuristic 2 - count the number of squares owned, minus number of squares owned by opponent.
