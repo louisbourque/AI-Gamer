@@ -1,18 +1,9 @@
 <html>
 <head><title>COMP 4106 - Assignment 2 Connect Four</title>
-</head>
-<body>
 
-<input type="button" value="Start" onclick="start();">&nbsp;&nbsp;
-<input type="button" value="Stop" onclick="stop();">&nbsp;&nbsp;
-<span id="result"></span>
-<br>
-<canvas id="canvas" width="600" height="600"></canvas>
 
 
 <script type="text/javascript">
-//the canvas used to draw the state of the game
-var ctx = document.getElementById('canvas').getContext("2d");
 
 //Point class, used to refer to a specific location on the grid
 function Point(pos_x,pos_y){
@@ -32,49 +23,74 @@ config.threeinarow = new Array();
 config.twoinarow = new Array();
 config.player = 0;
 config.playertype = "";
+var stats;
+var grid
 
-var stats = new Object();
-stats.moves = 0;
+function init_grid(){
 
-var grid = new Array();
-
-//initialize the game state
-for(var i=0;i<config.grid_x;i++){
-	grid[i] = new Array();
-}
-for(var i=0;i<config.grid_x;i++){	
-	for(var j=0;j<config.grid_y;j++){
-		grid[i][j] = 0;
+	grid = new Array();
+	
+	//initialize the game state
+	for(var i=0;i<config.grid_x;i++){
+		grid[i] = new Array();
 	}
-}
-//come up with winning state.
-//three and two in a row are used for scoring in heuristics
-for(var row = 0; row < config.grid_x; row++){
-	for(var column = 0; column < config.grid_y; column++){
-		for(var delRow = -1; delRow <= 1; delRow++){
-			for(var delColumn = -1; delColumn <= 1; delColumn++){
-				if(((delRow == 1) && (delColumn == 0)) ||
-					((delRow == 1) && (delColumn == 1)) ||
-					((delRow == 0) && (delColumn == 1)) ||
-					((delRow == -1) && (delColumn == 1)) && (inbounds(row,column))){
-						if(inbounds( row + (3*delRow), column + (3*delColumn))){
-							var anArray = [new Point(row,column),new Point(row + delRow,column + delColumn),new Point(row + (2 *delRow), column + (2 * delColumn)),new Point(row + (3 *delRow), column + (3 * delColumn))];
-							config.fourinarow.push(anArray);
-						}
-						if(inbounds( row + (2*delRow), column + (2*delColumn))){
-							var anArray = [new Point(row,column),new Point(row + delRow,column + delColumn),new Point(row + (2 *delRow), column + (2 * delColumn))];
-							config.threeinarow.push(anArray);
-						}
-						if(inbounds( row + (delRow), column + (delColumn))){
-							var anArray = [new Point(row,column),new Point(row + delRow,column + delColumn)];
-							config.twoinarow.push(anArray);
-						}
-				}
-			}
+	for(var i=0;i<config.grid_x;i++){	
+		for(var j=0;j<config.grid_y;j++){
+			grid[i][j] = 0;
 		}
 	}
 }
 
+function init(){
+	
+	stats = new Object();
+	stats.moves = 0;
+	
+	init_grid();
+	
+	//come up with winning state.
+	//three and two in a row are used for scoring in heuristics
+	for(var row = 0; row < config.grid_x; row++){
+		for(var column = 0; column < config.grid_y; column++){
+			for(var delRow = -1; delRow <= 1; delRow++){
+				for(var delColumn = -1; delColumn <= 1; delColumn++){
+					if(((delRow == 1) && (delColumn == 0)) ||
+						((delRow == 1) && (delColumn == 1)) ||
+						((delRow == 0) && (delColumn == 1)) ||
+						((delRow == -1) && (delColumn == 1)) && (inbounds(row,column))){
+							if(inbounds( row + (3*delRow), column + (3*delColumn))){
+								var anArray = [new Point(row,column),new Point(row + delRow,column + delColumn),new Point(row + (2 *delRow), column + (2 * delColumn)),new Point(row + (3 *delRow), column + (3 * delColumn))];
+								config.fourinarow.push(anArray);
+							}
+							if(inbounds( row + (2*delRow), column + (2*delColumn))){
+								var anArray = [new Point(row,column),new Point(row + delRow,column + delColumn),new Point(row + (2 *delRow), column + (2 * delColumn))];
+								config.threeinarow.push(anArray);
+							}
+							if(inbounds( row + (delRow), column + (delColumn))){
+								var anArray = [new Point(row,column),new Point(row + delRow,column + delColumn)];
+								config.twoinarow.push(anArray);
+							}
+					}
+				}
+			}
+		}
+	}
+	
+	
+	//tell the worker to set itself up
+	var message = new Object();
+	message.do = 'init';
+	message.config = config;
+	message.config.playertype = 'minimax';
+	message.config.player = 1;
+	player1.postMessage(message);
+	message.config.playertype = 'random';
+	message.config.player = 2;
+	player2.postMessage(message);
+	
+	
+	document.getElementById('result').innerHTML="";
+}
 //check if a coordiate is within the grid
 function inbounds(row,column){
 	return ((row >= 0) &&
@@ -150,15 +166,24 @@ function onMove(data){
 			break;
 		}
 	}
-	config.runTimeout = setTimeout(run, 500);
+	config.runTimeout = setTimeout(run, 300);
 	refresh_view();
 }
 
 //start the run loop
 function start(){
+	init();
 	clearTimeout(config.runTimeout);
 	run();
 }
+
+//resume the run loop
+function resume(){
+	if(check_winner()) return true;
+	clearTimeout(config.runTimeout);
+	run();
+}
+
 //pause the game
 function stop(){
 	clearTimeout(config.runTimeout);
@@ -179,23 +204,10 @@ function check_winner(){
 			//console.log(config.fourinarow[i][2].x+","+config.fourinarow[i][2].y);
 			//console.log(config.fourinarow[i][3].x+","+config.fourinarow[i][3].y);
 			document.getElementById('result').innerHTML="Player "+grid[config.fourinarow[i][0].x][config.fourinarow[i][0].y]+" has won!";
+			return true;
 		}
 	}
 }
-
-
-
-//tell the worker to set itself up
-var message = new Object();
-message.do = 'init';
-message.config = config;
-message.config.playertype = 'minimax';
-message.config.player = 1;
-player1.postMessage(message);
-message.config.playertype = 'random';
-message.config.player = 2;
-player2.postMessage(message);
-
 
 //Redraw the screen based on the state of the game
 function refresh_view(){
@@ -245,8 +257,30 @@ function refresh_view(){
 	check_winner();
 }
 
+</script>
+</head>
+<body>
+
+<input type="button" value="Start" onclick="start();">&nbsp;&nbsp;
+<input type="button" value="Stop" onclick="stop();">&nbsp;&nbsp;
+<input type="button" value="Resume" onclick="resume();">&nbsp;&nbsp;
+<span id="result"></span>
+<br>
+<canvas id="canvas" width="400" height="360"></canvas>
+
+<h2>Purpose</h2>
+<p>The goal of this assignment was to create a AI player (yellow) of the game Connect 4 and have it play against a player who moves randomly (red). For the AI player, we are using a minimax search to determine the best move by finding the move that will maximize the probability of a win, and minimize the probability of a loss.</p>
+
+<h2>How it works</h2>
+<p>The application uses two web workers to offload the processing of finding the next move away from the UI thread. This allows the browser to remain responsive, even though intense computations may be taking place. The status of the game is drawn on the screen using a canvas element. </p>
+
+
+<script type="text/javascript">
+//the canvas used to draw the state of the game
+var ctx = document.getElementById('canvas').getContext("2d");
+
+init_grid();
 refresh_view();
 </script>
-
 </body>
 </html>
