@@ -1,243 +1,252 @@
-/**
-This is the worker. It is used by connect4.html to perform all the CPU-intensive
-processing, so the GUI will remain responsive. This worker maintains the state
-of the grid, position of the elements on the grid, and performs the computations
-that are used to find the best move.
-
-The worker is initialized and given instructions by connect4.html.
-The worker sends the state information back to connect4.html to be drawn on the screen
-  so the user can see what the current state is.
-**/
-
 //Point class, used to refer to a specific location on the grid
 function Point(pos_x,pos_y){
 	this.x = pos_x;
 	this.y = pos_y;
 }
-//Node class, used nodes in a tree.
-function Node(parent,grid,move,player,children){
-	this.parent = parent;
-	this.grid = grid;
-	this.move = move;
-	this.player = player;
-	this.children = children;
-}
 
-//some local variables used by the worker to track it's state.
+var ctx;
+//config object used to set the parameters of the game. This object is passed to the worker thread to initialize it
 var config = new Object();
+config.depth = 4;
+config.grid_x = 7;
+config.grid_y = 6;
+config.radius = 25;
+config.runTimeout = 0;
+config.fourinarow = new Array();
+config.threeinarow = new Array();
+config.twoinarow = new Array();
+config.player = 0;
+config.playertype = "";
+var stats;
 var grid;
 
-//this is the function that is called whenever the worker receives a message.
-//based on the content of the message (event.data.do), do the appropriate action.
-onmessage = function(event) {
-	switch(event.data.do){
-		case 'move':
-			grid = event.data.grid;
-			move();
-			break;
-		case 'init':
-			config = event.data.config;
-			break;
-	}
-}
+//create web workers that will do the processing
+var player1 = new Worker("connect4-worker.js");
+var player2 = new Worker("connect4-worker.js");
 
-//initialize the decision tree, call max_value() on each child, and return the best move.
-function alpha_beta_search(){
-	var node = new Node(null,grid,0,config.player,new Array());
-	var bestMove = 0;
-	var bestAlpha = -99999;
-	for(var col = 0;col<config.grid_x;col++){
-		if(node.grid[col][0] == 0){
-			//create a copy of the game's state space
-			//have to create a whole new array
-			var nextPlayer = config.player;
-			var newGrid = new Array();	
-			for(var i=0;i<config.grid_x;i++){
-				newGrid[i] = new Array();
-			}
-			for(var i=0;i<config.grid_x;i++){	
-				for(var j=0;j<config.grid_y;j++){
-					newGrid[i][j] = node.grid[i][j];
-				}
-			}
-			//update the game with the new move
-			for(var j = config.grid_y-1;j>=0;j--){
-				if(newGrid[col][j] == 0){
-					newGrid[col][j] = nextPlayer;
-					break;
-				}
-			}
-			//add the node to the tree
-			node.children.push(new Node(node,newGrid,col,nextPlayer,new Array()));
-		}
+//when the worker sends a message, act on it.
+player1.onmessage = function(event) {
+	//if it's a move, then redraw the screen
+	if(event.data.type == 'move'){
+		onMove(event.data);
 	}
+	//else
+		//console.log(event.data);
+	//otherwise, it's an error, send it to the console so we can see it in firebug
+};
+//if the worker reports an error, log it in firebug
+player1.onerror = function(error) {  
+	//console.log(error.message);
+};
+//when the worker sends a message, act on it.
+player2.onmessage = function(event) {
+	//if it's a move, then redraw the screen
+	if(event.data.type == 'move'){
+		//console.log(event.data);
+		onMove(event.data);
+	}
+	//else
+		//console.log(event.data);
+	//otherwise, it's an error, send it to the console so we can see it in firebug
+};
+//if the worker reports an error, log it in firebug
+player2.onerror = function(error) {  
+	//console.log(error.message);
+};
+
+function init_grid(){
+
+	grid = new Array();
 	
-	var outBest = "";
-	for(var i = 0;i<node.children.length;i++){
-		var current_value = max_value(node.children[i], config.depth, -99999, 99999);
-		if(current_value > bestAlpha){
-			bestAlpha = current_value;
-			bestMove = node.children[i].move;
-		}
-		//debugging
-		outBest+="("+node.children[i].move+":"+current_value+")";
-	}
-	postMessage(outBest);
-	return bestMove;
-}
-
-function max_value(node, depth, alpha, beta){
-	for(var col = 0;col<config.grid_x;col++){
-		if(node.grid[col][0] == 0){
-			//create a copy of the game's state space
-			//have to create a whole new array
-			var nextPlayer;
-			if(node.player == 1)
-				nextPlayer = 2;
-			else
-				nextPlayer = 1;
-			var newGrid = new Array();	
-			for(var i=0;i<config.grid_x;i++){
-				newGrid[i] = new Array();
-			}
-			for(var i=0;i<config.grid_x;i++){	
-				for(var j=0;j<config.grid_y;j++){
-					newGrid[i][j] = node.grid[i][j];
-				}
-			}
-			//update the game with the new move
-			for(var j = config.grid_y-1;j>=0;j--){
-				if(newGrid[col][j] == 0){
-					newGrid[col][j] = nextPlayer;
-					break;
-				}
-			}
-			//add the node to the tree
-			node.children.push(new Node(node,newGrid,col,nextPlayer,new Array()));
-		}
-	}
-	if(node.children.length == 0 || depth == 0)
-		return heuristic_estimate(node);
-	while(node.children.length > 0){
-		alpha = Math.max(alpha,min_value(node.children[node.children.length-1],depth-1,alpha,beta));
-		node.children.pop();
-		if(alpha >= beta)
-			return alpha;
-	}
-	return alpha;
-}
-
-function min_value(node, depth, alpha, beta){
-	//open the node and build the tree.
-	for(var col = 0;col<config.grid_x;col++){
-		if(node.grid[col][0] == 0){
-			//create a copy of the game's state space
-			//have to create a whole new array
-			var nextPlayer;
-			if(node.player == 1)
-				nextPlayer = 2;
-			else
-				nextPlayer = 1;
-			var newGrid = new Array();	
-			for(var i=0;i<config.grid_x;i++){
-				newGrid[i] = new Array();
-			}
-			for(var i=0;i<config.grid_x;i++){	
-				for(var j=0;j<config.grid_y;j++){
-					newGrid[i][j] = node.grid[i][j];
-				}
-			}
-			//update the game with the new move
-			for(var j = config.grid_y-1;j>=0;j--){
-				if(newGrid[col][j] == 0){
-					newGrid[col][j] = nextPlayer;
-					break;
-				}
-			}
-			//add the node to the tree
-			node.children.push(new Node(node,newGrid,col,nextPlayer,new Array()));
-		}
-	}
-	if(node.children.length == 0 || depth == 0)
-		return heuristic_estimate(node);
-	while(node.children.length > 0){
-		beta = Math.min(beta,max_value(node.children[node.children.length-1],depth-1,alpha,beta));
-		node.children.pop();
-		if(beta <= alpha)
-			return beta;
-	}
-	return beta;
-}
-
-//heuristic_estimate
-function heuristic_estimate(node){
-	//check for a win or a loss
-	var score = 0;
-	for(var i = 0;i < config.fourinarow.length;i++){
-		if(node.grid[config.fourinarow[i][0].x][config.fourinarow[i][0].y] != 0  &&
-			node.grid[config.fourinarow[i][0].x][config.fourinarow[i][0].y] == node.grid[config.fourinarow[i][1].x][config.fourinarow[i][1].y] &&
-			node.grid[config.fourinarow[i][1].x][config.fourinarow[i][1].y] == node.grid[config.fourinarow[i][2].x][config.fourinarow[i][2].y] &&
-			node.grid[config.fourinarow[i][2].x][config.fourinarow[i][2].y] == node.grid[config.fourinarow[i][3].x][config.fourinarow[i][3].y]){
-				if(node.grid[config.fourinarow[i][0].x][config.fourinarow[i][0].y] == node.player)
-					return 8000;
-				else
-					return -8000;
-		}
-	}
-	//no winner, give points for near-wins:
-	for(var i = 0;i < config.threeinarow.length;i++){
-		//I lose
-		if(node.grid[config.threeinarow[i][0].x][config.threeinarow[i][0].y] != 0 &&
-			node.grid[config.threeinarow[i][0].x][config.threeinarow[i][0].y] == node.grid[config.threeinarow[i][1].x][config.threeinarow[i][1].y] &&
-			node.grid[config.threeinarow[i][1].x][config.threeinarow[i][1].y] == node.grid[config.threeinarow[i][2].x][config.threeinarow[i][2].y]){
-				if(node.grid[config.threeinarow[i][0].x][config.threeinarow[i][0].y] == node.player)
-					score += 32;
-				else
-					score -= 32;
-		}
-	}
-	for(var i = 0;i < config.twoinarow.length;i++){
-		if(node.grid[config.twoinarow[i][0].x][config.twoinarow[i][0].y] != 0 &&
-			node.grid[config.twoinarow[i][0].x][config.twoinarow[i][0].y] == node.grid[config.twoinarow[i][1].x][config.twoinarow[i][1].y]){
-				if(node.grid[config.twoinarow[i][0].x][config.twoinarow[i][0].y] == node.player)
-					score += 4;
-				else	
-					score -= 4;
-		}
+	//initialize the game state
+	for(var i=0;i<config.grid_x;i++){
+		grid[i] = new Array();
 	}
 	for(var i=0;i<config.grid_x;i++){	
 		for(var j=0;j<config.grid_y;j++){
-			if(node.grid[i][j] != 0){
-				if(node.grid[i][j] == node.player)
-					score++;
-				else
-					score--;
+			grid[i][j] = 0;
+		}
+	}
+	refresh_view();
+}
+
+function init(){
+	//the canvas used to draw the state of the game
+	ctx = document.getElementById('canvas').getContext("2d");
+	
+	stats = new Object();
+	stats.moves = 0;
+	
+	init_grid();
+	
+	//come up with winning state.
+	//three and two in a row are used for scoring in heuristics
+	for(var row = 0; row < config.grid_x; row++){
+		for(var column = 0; column < config.grid_y; column++){
+			for(var delRow = -1; delRow <= 1; delRow++){
+				for(var delColumn = -1; delColumn <= 1; delColumn++){
+					if(((delRow == 1) && (delColumn == 0)) ||
+						((delRow == 1) && (delColumn == 1)) ||
+						((delRow == 0) && (delColumn == 1)) ||
+						((delRow == -1) && (delColumn == 1)) && (inbounds(row,column))){
+							if(inbounds( row + (3*delRow), column + (3*delColumn))){
+								var anArray = [new Point(row,column),new Point(row + delRow,column + delColumn),new Point(row + (2 *delRow), column + (2 * delColumn)),new Point(row + (3 *delRow), column + (3 * delColumn))];
+								config.fourinarow.push(anArray);
+							}
+							if(inbounds( row + (2*delRow), column + (2*delColumn))){
+								var anArray = [new Point(row,column),new Point(row + delRow,column + delColumn),new Point(row + (2 *delRow), column + (2 * delColumn))];
+								config.threeinarow.push(anArray);
+							}
+							if(inbounds( row + (delRow), column + (delColumn))){
+								var anArray = [new Point(row,column),new Point(row + delRow,column + delColumn)];
+								config.twoinarow.push(anArray);
+							}
+					}
+				}
 			}
 		}
 	}
-	return score;
+	
+	
+	//tell the worker to set itself up
+	var message = new Object();
+	message.do = 'init';
+	message.config = config;
+	message.config.playertype = 'minimax';
+	message.config.player = 1;
+	player1.postMessage(message);
+	message.config.playertype = 'random';
+	message.config.player = 2;
+	player2.postMessage(message);
+	
+	
+	document.getElementById('result').innerHTML="";
+}
+//check if a coordiate is within the grid
+function inbounds(row,column){
+	return ((row >= 0) &&
+               (column >= 0) &&
+               (row < config.grid_x) &&
+               (column < config.grid_y));
+
 }
 
-//decide on a move based on type of player
-function move(){
-	//find a move
-	var column = 0; //which column to drop the token into
-	switch(config.playertype){
-		case "random":
-			//choose a move at random, but make sure it's a legal move:
-			do{
-				column = Math.floor(Math.random()*config.grid_x);
-			}while(grid[column][0] != 0)
-			break;
-		case "minimax":
-			column = alpha_beta_search();
-			break;
+//This function runs repeatedly. Checks who should move, and notifies them to move.
+function run(){
+	//find who's move it is, send them a message to move
+	if(stats.moves % 2 == 0){
+		move(player1);
+	}else{
+		move(player2);
 	}
-	
-	//send the move to browser
+	stats.moves++;
+	clearTimeout(config.runTimeout);
+}
+
+//sends a start message to the worker. The worker will come up with the best move, or a random move, depending on how the worker was initialized.
+function move(player){
 	var message = new Object();
-	message.type = 'move';
-	message.column = column;
-	message.player = config.player;
-	postMessage(message);
+	message.do = 'move';
+	message.grid = grid;
+	player.postMessage(message);
+}
+
+//when a player comes back with a move, carry it out
+function onMove(data){
+	//console.log("moved player"+data.player+" in col "+data.column);
+	for(var i = config.grid_y-1;i>=0;i--){
+		if(grid[data.column][i] == 0){
+			grid[data.column][i] = data.player;
+			break;
+		}
+	}
+	config.runTimeout = setTimeout(run, 300);
+	refresh_view();
+}
+
+//start the run loop
+function start(){
+	init();
+	clearTimeout(config.runTimeout);
+	run();
+}
+
+//resume the run loop
+function resume(){
+	if(check_winner()) return true;
+	clearTimeout(config.runTimeout);
+	run();
+}
+
+//pause the game
+function stop(){
+	clearTimeout(config.runTimeout);
+}
+//check if there is a winner
+function check_winner(){
+	for(var i = 0;i < config.fourinarow.length;i++){
+		if(grid[config.fourinarow[i][0].x][config.fourinarow[i][0].y] == grid[config.fourinarow[i][1].x][config.fourinarow[i][1].y] &&
+		   grid[config.fourinarow[i][1].x][config.fourinarow[i][1].y] == grid[config.fourinarow[i][2].x][config.fourinarow[i][2].y] &&
+		   grid[config.fourinarow[i][2].x][config.fourinarow[i][2].y] == grid[config.fourinarow[i][3].x][config.fourinarow[i][3].y] &&
+		   grid[config.fourinarow[i][0].x][config.fourinarow[i][0].y] >0){
+			//someone has won. Stop the game
+			stop();
+			
+			//console.log("Player "+grid[config.fourinarow[i][0].x][config.fourinarow[i][0].y]+" has won!");
+			//console.log(config.fourinarow[i][0].x+","+config.fourinarow[i][0].y);
+			//console.log(config.fourinarow[i][1].x+","+config.fourinarow[i][1].y);
+			//console.log(config.fourinarow[i][2].x+","+config.fourinarow[i][2].y);
+			//console.log(config.fourinarow[i][3].x+","+config.fourinarow[i][3].y);
+			document.getElementById('result').innerHTML="Player "+grid[config.fourinarow[i][0].x][config.fourinarow[i][0].y]+" has won!";
+			return true;
+		}
+	}
+}
+
+//Redraw the screen based on the state of the game
+function refresh_view(){
+	//draw the board, color tokens as appropriate
+	ctx.fillStyle = "#999";
+	ctx.beginPath();
+	ctx.rect(0, 0, (config.radius*2+5)*config.grid_x+5, (config.radius*2+5)*config.grid_y+5);
+	ctx.closePath();
+	ctx.fill();
+	for(var i=0;i<config.grid_x;i++){
+		for(var j=0;j<config.grid_y;j++){
+			switch(grid[i][j]){
+			case 0:
+				//empty
+				ctx.fillStyle = "#fff";
+				ctx.beginPath();
+				ctx.arc((config.radius + 5)+i*(config.radius*2+5),(config.radius + 5)+j*(config.radius*2+5),config.radius,0,Math.PI*2, true);
+				ctx.closePath();
+				ctx.fill();
+				ctx.fillStyle = "#000";
+				ctx.stroke();
+				break;
+			case 1:
+				//player 1
+				ctx.fillStyle = "#FFFF00";
+				ctx.beginPath();
+				ctx.arc((config.radius + 5)+i*(config.radius*2+5),(config.radius + 5)+j*(config.radius*2+5),config.radius,0,Math.PI*2, true);
+				ctx.closePath();
+				ctx.fill();
+				ctx.fillStyle = "#000";
+				ctx.stroke();
+				break;
+				break;
+			case 2:
+				//player2
+				ctx.fillStyle = "#FF0000";
+				ctx.beginPath();
+				ctx.arc((config.radius + 5)+i*(config.radius*2+5),(config.radius + 5)+j*(config.radius*2+5),config.radius,0,Math.PI*2, true);
+				ctx.closePath();
+				ctx.fill();
+				ctx.fillStyle = "#000";
+				ctx.stroke();
+				break;
+			}
+		}
+	}
+	check_winner();
 }
