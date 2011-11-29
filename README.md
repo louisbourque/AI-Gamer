@@ -3,7 +3,7 @@ This project was an assignment for a university course in Artificial Intelligenc
 ##Demo
 
 Connect 4:
-http://louisbourque.github.com/AI-Gamer/connect4.html
+http://louisbourque.ca/AI-Gamer/connect4.html
 
 Virus Game:
-http://louisbourque.github.com/AI-Gamer/virus.html
+http://louisbourque.ca/AI-Gamer/virus.html
