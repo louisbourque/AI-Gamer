@@ -1,6 +1,8 @@
 <html>
 <head><title>Connect Four</title>
 <meta name=viewport content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="css/normalize.css">
+<link rel="stylesheet" href="css/h5bp.css">
 <script src="connect4.js"></script>
 <script>
   (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
@@ -27,6 +29,8 @@
 
 <h2>How it works</h2>
 <p>The application uses two web workers to offload the processing of finding the next move away from the UI thread. This allows the browser to remain responsive, even though intense computations may be taking place. The status of the game is drawn on the screen using a canvas element. </p>
-
+<footer>
+  Built by <a href="http://louisbourque.ca/">Louis Bourque</a>.
+</footer>
 </body>
 </html>
